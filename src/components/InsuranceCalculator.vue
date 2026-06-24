@@ -162,7 +162,7 @@ const showRiders = ref(true);
 const formData = ref({
   dob: '',
   gender: '',
-  term: 9,            // дефолт в середине допустимого диапазона 3-15
+  term: 9,            // дефолт в середине допустимого диапазона 3-20
   frequency: '',
   mode: 'premium_to_sa',
   deathBenefitType: 'full_sum_assured',
