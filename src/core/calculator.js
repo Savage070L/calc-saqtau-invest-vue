@@ -40,6 +40,14 @@ export function roundHalfUp(value, decimals = 0) {
   return Math.round((value + Number.EPSILON) * factor) / factor;
 }
 
+// Excel ROUNDUP(value, decimals) — округление ВВЕРХ по модулю, с защитой
+// от плавающей точки (иначе 0.01×100 = 1.0000000002 → ceil даст 2).
+export function roundUp(value, decimals = 0) {
+  const factor = Math.pow(10, decimals);
+  const scaled = Number((value * factor).toFixed(6));
+  return Math.ceil(scaled) / factor;
+}
+
 function clampTermKey(n) {
   return Math.min(Math.max(Math.round(n), 3), 15);
 }
@@ -72,28 +80,30 @@ export class PolicyCalculator {
   }
 
   /**
-   * Saqtau Invest:
-   *   G6 (от премий), G7 (от СС), H4 (единовр.) — по сроку n.
-   *   При t = 1 (единовременно): G2 = H4, G3 = G4 = G5 = 0.
-   *   При t > 1 (рассрочка):     G2/G3/G4/G5 — по сроку t (с ROUNDUP до 2 знаков).
+   * Saqtau Invest — расходные коэффициенты ТОЧНО как в Excel (Параметры G2..G7):
+   *   G2 = ROUNDUP(J[min(t,15)], 2),  G3 = ROUNDUP(K[min(t,15)], 2)   — по сроку t
+   *   G6 = M[min(t,15)],  G7 = N[min(t,15)]                            — по сроку t
+   *   Все нагрузки берутся по СРОКУ УПЛАТЫ t (INDEX по MIN(t-2,13)).
+   *   При t = 1 (единовременно): G2 = G3 = G6 = G7 = 0, а единовременная
+   *   нагрузка H4 = Параметры!H4 = 0 (ячейка в книге пустая). Поэтому BP для
+   *   единовременной уплаты считается без аквизиционной нагрузки — как в Excel.
    */
   _getExpenses(n, t) {
-    const en = this.expenseTable[clampTermKey(n)];
-    const G6 = en.G6;
-    const G7 = en.G7;
-    const H4 = en.H4;
     const G8 = this.surrenderPenalty;
 
     if (t === 1) {
-      return { G2: H4, G3: 0.0, G4: 0.0, G5: 0.0, G6, G7, G8, H4 };
+      return { G2: 0.0, G3: 0.0, G4: 0.0, G5: 0.0, G6: 0.0, G7: 0.0, G8, H4: 0.0 };
     }
     const et = this.expenseTable[clampTermKey(t)];
     return {
-      G2: Math.ceil(et.G2 * 100) / 100,
-      G3: Math.ceil(et.G3 * 100) / 100,
+      G2: roundUp(et.G2, 2),
+      G3: roundUp(et.G3, 2),
       G4: et.G4 ?? 0.0,
       G5: et.G5 ?? 0.0,
-      G6, G7, G8, H4,
+      G6: et.G6,            // «Расход от премий»  — по сроку уплаты t
+      G7: et.G7,            // «Расход от страх. суммы» — по сроку уплаты t
+      G8,
+      H4: et.H4 ?? 0.0,
     };
   }
 
@@ -437,34 +447,37 @@ export class PolicyCalculator {
         }
       }
 
-      // Резерв (Ax-based) — для отображения «Страховые резервы»
+      // Резерв (Ax-based) — для отображения «Страховые резервы» (Расчет!M)
       const reserveRate = Ax_n_k + G7 * ax_n_k + BP * (alfa_k + G6 * ax_t_k - ax_t_k);
 
-      // Выкупная сумма
+      // Выкупная сумма (Расчет!N для «сумма оплаченных взносов», иначе = Резерв_1)
       let surrenderBase;
       let IAx_n_k = 0.0;
       if (deathBenefitType === 'paid_premiums') {
         IAx_n_k       = (Rxk - Rxn - (term - k) * Mxn) / Dx;
-        surrenderBase = Ex_n_k + G7 * ax_n_k + BP * IAx_n_k + BP * (alfa_k + G6 * ax_t_k - ax_t_k);
+        // При единовременной уплате (t=1) Excel использует Ax:n1_k = (Mxk−Mxn)/Dxk
+        const IAterm  = (t === 1) ? (Mxk - Mxn) / Dxk : IAx_n_k;
+        surrenderBase = Ex_n_k + G7 * ax_n_k + BP * IAterm + BP * (alfa_k + G6 * ax_t_k - ax_t_k);
       } else {
         surrenderBase = reserveRate;
       }
 
       const surrenderRate = surrenderBase - (1.0 - surrenderBase) * G8;
 
-      const reserve  = reserveRate * sumAssured;
-      let   surrender = Math.max(surrenderRate * sumAssured, 0.0);
-      if (k === term) surrender = sumAssured;
-
-      const reducedSA = Ax_n_k > 0 ? roundHalfUp(surrender / Ax_n_k) : 0;
+      // Округление как в Excel: E = IF(резерв>0, ROUND(резерв·СС,0), 0);
+      // P = ROUND(выкуп·СС,0), отображается как IF(выкуп>0, P, 0);
+      // Q (уменьшенная СС) = IF(выкуп>0 и не единовр., ROUND(P/Ax:n_k,0), 0).
+      const reserve   = reserveRate   > 0 ? roundHalfUp(reserveRate   * sumAssured) : 0;
+      const surrender = surrenderRate > 0 ? roundHalfUp(surrenderRate * sumAssured) : 0;
+      const reducedSA = (surrenderRate > 0 && frequency !== 'single' && Ax_n_k > 0)
+        ? roundHalfUp(surrender / Ax_n_k)
+        : 0;
 
       reserves.push({
         year: k, age: xk,
         Ax_n_k, Ex_n_k, ax_n_k, ax_t_k, IAx_n_k, alfa_k,
         reserveRate, surrenderRate,
-        reserve:   Math.round(reserve * 100) / 100,
-        surrender: Math.round(surrender * 100) / 100,
-        reducedSA,
+        reserve, surrender, reducedSA,
       });
     }
 
