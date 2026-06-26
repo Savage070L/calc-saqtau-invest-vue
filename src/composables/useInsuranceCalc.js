@@ -216,6 +216,13 @@ export function useInsuranceCalc() {
         }));
       }
 
+      // Минимальная годовая премия — не менее $1000 по курсу (блокирующая ошибка).
+      if (minPremiumWarning) {
+        postErrs.push(ti('errors.minPremiumUsd', {
+          min: `$ ${formatMoney(PRODUCT_CONFIG.minAnnualPremiumUsd ?? 1000)}`,
+        }));
+      }
+
       if (postErrs.length > 0) {
         errors.value = [...errors.value, ...postErrs];
         error.value = errors.value.join('; ');

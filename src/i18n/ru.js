@@ -158,6 +158,7 @@ export default {
     sumAssuredRequired: 'Укажите страховую сумму больше 0',
     premiumRequired: 'Укажите премию больше 0',
     minPremium: 'Минимальный взнос для оплаты «{frequency}» — {min}',
+    minPremiumUsd: 'Минимальная премия — {min}',
     annuityFrequencyRequired: 'Укажите периодичность аннуитетных выплат',
     annuityTermRequired: 'Укажите срок аннуитетных выплат (больше 0)',
     guaranteedPeriodRequired: 'Укажите гарантированный период (0 или больше)',
