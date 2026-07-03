@@ -4,7 +4,8 @@
 
 
     <!-- ── Группа 1: Смерть ─── -->
-    <div class="rider-group-label">{{ t('riders.groupDeath') }}</div>
+    <div v-if="t('riders.groupDeath')" class="rider-group-label">{{ t('riders.groupDeath') }}</div>
+    <div v-else class="rider-group-divider" aria-hidden="true"></div>
 
     <div class="rider-check-row">
       <label class="rider-chk-wrap">
@@ -18,7 +19,8 @@
     </div>
 
     <!-- ── Группа 2: Инвалидность ─── -->
-    <div class="rider-group-label">{{ t('riders.groupDisability') }}</div>
+    <div v-if="t('riders.groupDisability')" class="rider-group-label">{{ t('riders.groupDisability') }}</div>
+    <div v-else class="rider-group-divider" aria-hidden="true"></div>
 
     <div class="rider-check-row">
       <label class="rider-chk-wrap">
@@ -32,7 +34,8 @@
     </div>
 
     <!-- ── Группа 3: Травмы и госпитализация ─── -->
-    <div class="rider-group-label">{{ t('riders.groupTraumaHosp') }}</div>
+    <div v-if="t('riders.groupTraumaHosp')" class="rider-group-label">{{ t('riders.groupTraumaHosp') }}</div>
+    <div v-else class="rider-group-divider" aria-hidden="true"></div>
 
     <div class="rider-check-row with-select">
       <label class="rider-chk-wrap">
@@ -104,11 +107,16 @@ watch(local, (val) => emit('update:modelValue', { ...val }), { deep: true });
 
 <style scoped>
 .riders-subtitle {
-  margin: 0 0 12px;
-  font-size: 14px;
-  line-height: 1.4;
-  color: var(--text-light, #7FB3D3);
-  font-weight: 500;
+  margin: 0 0 16px;
+  font-size: 17px;
+  line-height: 1.45;
+  color: var(--text-main, #E8F4FD);
+  font-weight: 600;
+}
+.rider-group-divider {
+  height: 0;
+  margin: 14px 0 8px;
+  border-top: 1px solid rgba(95,189,245,0.25);
 }
 .rider-group-label {
   font-size: 15px; font-weight: 700;
